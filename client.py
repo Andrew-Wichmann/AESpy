@@ -1,30 +1,73 @@
 import sys
 from BitVector import *
 
-key_bitvector=BitVector(textstring = "This is my key!!")
-i=0
-roundkey=['','','','','','','','','','','','']
+num_of_rounds=11
 
-def keysubstitution(key):
+#key_bitvector=BitVector(hexstring = "00000000000000000000000000000000")
+key_bitvector=BitVector(hexstring = "ffffffffffffffffffffffffffffffff")
+rcon=[BitVector(intVal = 1, size = 8), BitVector(intVal = 2,size=8), BitVector(intVal = 4, size=8), BitVector(intVal = 8,size=8), BitVector(intVal=16,size=8), BitVector(intVal = 32,size=8), BitVector(intVal = 64,size=8), BitVector(intVal = 128,size=8), BitVector(intVal = 27,size=8), BitVector(intVal = 54,size=8)]
+
+
+##Initialize roundkey matrix as empty bitvectors
+roundkey = [BitVector(size=128) for _ in range(num_of_rounds)]
+
+def word_substitution(key,roud):
+
+	##Make new vector for the return
+	return_key = BitVector(intVal = key.intValue(), size = 32)
+
+	##Shift left one byte
+	return_key=return_key<<8
+	
 	i=0
-	while i<=16:
-		tempbyte = key[(i*4):((i+1)*4)]
-		subbyte = sbox[tempbyte].intValue()
-		key[(i*4):((i+1)*4]= BitVector(intval=subbyte)
+	while i<=3:
+		j=i*8
+		k=(i+1)*8
+		
+		##Get byte in integer for table lookup
+		tempbyte = return_key[j:k]
+		z = tempbyte.intValue()
+
+		##Find substitution in rijndael sbox table
+		subbyte = sbox[z]
+
+		##Make a bitvector out of the sbox result
+		temp2 = BitVector(intVal=subbyte, size=8)
+
+		##Replace the byte
+		return_key[j:k] = temp2
 		i=i+1
 
+
+	##Add round constant
+	return_key[:8]=rcon[roud-1] ^ return_key[:8]
+
+	return return_key
+
 def key_expansion():
+	i=0
+	
+	##First key is the original key
 	roundkey[0]=key_bitvector
-	roundkey[1]=roundkey[0]
-	tempbyte=roundkey[1][120:128]
-	roundkey[1][120:128]=roundkey[1][112:120]
-	roundkey[1][112:120]=roundkey[1][104:112]
-	roundkey[1][104:112]=roundkey[1][96:104]
-	roundkey[1][96:104]=tempbyte
-	keysubstitution(roundkey[1])
-	print roundkey[1]
-	
-	
+
+	roud=1
+	while roud<=(num_of_rounds-1):
+		##Substitute word
+		temp = word_substitution(roundkey[roud-1][96:128],roud)
+
+		##XOR temp with first word of previous key for word 0		
+		roundkey[roud][:32]= temp ^ roundkey[roud-1][:32]
+
+		##XOR the previous word with previous key for word 1-3
+		roundkey[roud][32:64]=roundkey[roud][:32]^roundkey[roud-1][32:64]
+		roundkey[roud][64:96]=roundkey[roud][32:64]^roundkey[roud-1][64:96]
+		roundkey[roud][96:128]=roundkey[roud][64:96]^roundkey[roud-1][96:128]
+
+		print roundkey[roud].get_bitvector_in_hex()
+
+		##Move to the next key
+		roud=roud+1
+
 Rcon = [	0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36,
             0x6c, 0xd8, 0xab, 0x4d, 0x9a, 0x2f, 0x5e, 0xbc, 0x63, 0xc6, 0x97,
             0x35, 0x6a, 0xd4, 0xb3, 0x7d, 0xfa, 0xef, 0xc5, 0x91, 0x39, 0x72,
@@ -124,6 +167,7 @@ print "Enter your key of size ", len(plaintext), " or less: "
 key = raw_input()
 key = key.upper()
 
+
 key_expansion()
 
 if(len(plaintext) < len(key)):
@@ -139,4 +183,3 @@ while(i<len(plaintext)):
 	cypher += c
 	key += c
 	i+=1
-print (cypher)
