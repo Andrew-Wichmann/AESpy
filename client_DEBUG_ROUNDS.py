@@ -141,7 +141,7 @@ def addRoundKey(roud, state):
 
 def encryption(message):
 	#temp = BitVector(textstring = message)
-	temp = BitVector(hexstring = "0123456789abcdeffedcba98765432102358904890293485090")
+	temp = BitVector(hexstring = "0123456789abcdeffedcba9876543210")
 	temp1 = temp[:128]
 	crypt= BitVector(size=0)
 	temp = temp[127:]
@@ -150,15 +150,33 @@ def encryption(message):
 		temp1 = addRoundKey(0,temp1)
 		i=1
 		while(i<num_of_rounds):
+			print "Start of round",i
+			print temp1.get_bitvector_in_hex()
+			print
 			temp1 = subBytes(temp1)
+			print "After subBytes"
+			print temp1.get_bitvector_in_hex()
+			print
 			temp1 = shiftRows(temp1)
+			print "After shiftRows"
+			print temp1.get_bitvector_in_hex()
+			print
 			if(i!=num_of_rounds-1):
 				temp1 = mixCollumns(temp1)
+				print "After mixCollumns"
+				print temp1.get_bitvector_in_hex()
+				print
 			temp1 = addRoundKey(i, temp1)
+			print "After addRoundKey"
+			print temp1.get_bitvector_in_hex()
+			print
+			print "Round key"
+			print roundkey[i].get_bitvector_in_hex()
+			print
 			i=i+1
+		print temp1
 		crypt = crypt+temp1
 		temp = BitVector(size=0)
-		print crypt.get_bitvector_in_hex()
 	return crypt.get_bitvector_in_hex()
 
 Rcon = [	0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36,
