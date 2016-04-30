@@ -7,7 +7,8 @@ num_of_rounds=11
 modulus = BitVector( bitstring='100011011' )
 
 #key_bitvector=BitVector(hexstring = "00000000000000000000000000000000")
-key_bitvector=BitVector(hexstring = "0f1571c947d9e8590cb7add6af7f6798")
+#key_bitvector=BitVector(hexstring = "0f1571c947d9e8590cb7add6af7f6798")
+key_bitvector = BitVector(textstring = "This is my key!!")
 rcon=[BitVector(intVal = 1, size = 8), BitVector(intVal = 2,size=8), BitVector(intVal = 4, size=8), BitVector(intVal = 8,size=8), BitVector(intVal=16,size=8), BitVector(intVal = 32,size=8), BitVector(intVal = 64,size=8), BitVector(intVal = 128,size=8), BitVector(intVal = 27,size=8), BitVector(intVal = 54,size=8)]
 
 
@@ -66,8 +67,6 @@ def key_expansion():
 		roundkey[roud][64:96]=roundkey[roud][32:64]^roundkey[roud-1][64:96]
 		roundkey[roud][96:128]=roundkey[roud][64:96]^roundkey[roud-1][96:128]
 
-		print roundkey[roud].get_bitvector_in_hex()
-
 		##Move to the next key
 		roud=roud+1
 
@@ -118,12 +117,12 @@ def ByteTimes3(byte):
 	return a.gf_multiply_modular(byte, modulus, 8)
 
 def matrixMultiplication(vector):
-	temp1=vector[:]	
-	temp1[0:8] = ByteTimes2(vector[0:8]) ^ ByteTimes3(vector[8:16]) ^ vector[16:24] ^ vector[24:32]
-	temp1[8:16] = vector[0:8] ^ ByteTimes2(vector[8:16]) ^ ByteTimes3(vector[16:24]) ^ vector[24:32]
-	temp1[16:24] = vector[0:8] ^ vector[8:16] ^ ByteTimes2(vector[16:24]) ^ ByteTimes3(vector[24:32])
-	temp1[24:32] = ByteTimes3(vector[0:8]) ^ vector[8:16] ^ vector[16:24] ^ ByteTimes2(vector[24:32])
-	return temp1
+	stateMatrix=vector[:]	
+	stateMatrix[0:8] = ByteTimes2(vector[0:8]) ^ ByteTimes3(vector[8:16]) ^ vector[16:24] ^ vector[24:32]
+	stateMatrix[8:16] = vector[0:8] ^ ByteTimes2(vector[8:16]) ^ ByteTimes3(vector[16:24]) ^ vector[24:32]
+	stateMatrix[16:24] = vector[0:8] ^ vector[8:16] ^ ByteTimes2(vector[16:24]) ^ ByteTimes3(vector[24:32])
+	stateMatrix[24:32] = ByteTimes3(vector[0:8]) ^ vector[8:16] ^ vector[16:24] ^ ByteTimes2(vector[24:32])
+	return stateMatrix
 
 def mixCollumns(state):
 	if(len(state)!=128):
@@ -140,25 +139,31 @@ def addRoundKey(roud, state):
 	return state ^ roundkey[roud]
 
 def encryption(message):
-	#temp = BitVector(textstring = message)
-	temp = BitVector(hexstring = "0123456789abcdeffedcba98765432102358904890293485090")
-	temp1 = temp[:128]
-	crypt= BitVector(size=0)
-	temp = temp[127:]
-	##loop until all blocks are encrypted
-	while(len(temp)>0):
-		temp1 = addRoundKey(0,temp1)
+	plaintext = BitVector(textstring = message)
+	if((len(plaintext)%128)!=0):
+		padlen = 128 - (len(plaintext)%128)
+		padding = BitVector(intVal=0, size=padlen)
+		plaintext = plaintext + padding		
+	stateMatrix = plaintext[:128]
+	crypt = BitVector(size=0)
+	block_count = 0
+	num_of_blocks =len(plaintext)/128
+	##loop until the message is all 0s 
+	for blockNum in range(num_of_blocks):
+		block_count = block_count+1
+		stateMatrix = addRoundKey(0,stateMatrix)
 		i=1
 		while(i<num_of_rounds):
-			temp1 = subBytes(temp1)
-			temp1 = shiftRows(temp1)
+			stateMatrix = subBytes(stateMatrix)
+			stateMatrix = shiftRows(stateMatrix)
 			if(i!=num_of_rounds-1):
-				temp1 = mixCollumns(temp1)
-			temp1 = addRoundKey(i, temp1)
+				stateMatrix = mixCollumns(stateMatrix)
+			stateMatrix = addRoundKey(i, stateMatrix)
 			i=i+1
-		crypt = crypt+temp1
-		temp = BitVector(size=0)
-		print crypt.get_bitvector_in_hex()
+		crypt = crypt+stateMatrix
+		if(blockNum != (num_of_blocks-1)):
+			plaintext = plaintext[128:]
+			stateMatrix = plaintext[:128]
 	return crypt.get_bitvector_in_hex()
 
 Rcon = [	0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36,
@@ -259,8 +264,8 @@ def character(x):
 #print "Enter your key of size ", len(plaintext), " or less: "
 #key = raw_input()
 #key = key.upper()
-plaintext = "This is my text!!"
+message = "This is my text!!!theyssadjfklv wdsfjkl; wqjkrl;wje;asdf jkla"
 
 key_expansion()
-plaintext = encryption(plaintext)
-print plaintext
+message = encryption(message)
+print message
