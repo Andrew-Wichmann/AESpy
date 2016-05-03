@@ -243,7 +243,7 @@ def encryption(message):
 		if(blockNum != (num_of_blocks-1)):
 			plaintext = plaintext[128:]
 			stateMatrix = plaintext[:128]
-	if(len(sys.argv)==3):
+	if(len(sys.argv)==4):
 		print "Block count",block_count
 		print cypher.get_bitvector_in_hex()
 	return cypher.get_bitvector_in_ascii()
@@ -278,7 +278,7 @@ def decryption(message):
 		if(blockNum != (num_of_blocks-1)):
 			cypher = cypher[128:]
 			stateMatrix = cypher[:128]
-	if(len(sys.argv)==3):
+	if(len(sys.argv)==4):
 		print "Block count",block_count
 		print plaintext.get_bitvector_in_hex()
 	return plaintext.get_bitvector_in_ascii()
@@ -344,9 +344,12 @@ f = open(sys.argv[1])
 message = f.read()
 
 key_expansion()
-message = encryption(message)
-sys.stdout.write(message)
-
-message = decryption(message)
-sys.stdout.write(message)
+if(sys.argv[2] == "enc"):
+	message = encryption(message)
+	sys.stdout.write(message)
+elif(sys.argv[2] == "dec"):
+	message = decryption(message)
+	sys.stdout.write(message)
+else: 
+	print "Usage: python client.py message.txt dec/enc"	
 
