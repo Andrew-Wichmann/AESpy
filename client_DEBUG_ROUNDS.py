@@ -1,4 +1,5 @@
 import sys
+import io
 from BitVector import *
 
 num_of_rounds=11
@@ -7,7 +8,8 @@ num_of_rounds=11
 modulus = BitVector( bitstring='100011011' )
 
 #key_bitvector=BitVector(hexstring = "00000000000000000000000000000000")
-key_bitvector=BitVector(hexstring = "0f1571c947d9e8590cb7add6af7f6798")
+#key_bitvector=BitVector(hexstring = "0f1571c947d9e8590cb7add6af7f6798")
+key_bitvector = BitVector(textstring = "This is my key!!")
 rcon=[BitVector(intVal = 1, size = 8), BitVector(intVal = 2,size=8), BitVector(intVal = 4, size=8), BitVector(intVal = 8,size=8), BitVector(intVal=16,size=8), BitVector(intVal = 32,size=8), BitVector(intVal = 64,size=8), BitVector(intVal = 128,size=8), BitVector(intVal = 27,size=8), BitVector(intVal = 54,size=8)]
 
 
@@ -66,15 +68,13 @@ def key_expansion():
 		roundkey[roud][64:96]=roundkey[roud][32:64]^roundkey[roud-1][64:96]
 		roundkey[roud][96:128]=roundkey[roud][64:96]^roundkey[roud-1][96:128]
 
-		print roundkey[roud].get_bitvector_in_hex()
-
 		##Move to the next key
 		roud=roud+1
 
 
 def subBytes(state):
 	if(len(state)!=128):
-		print "State subsitution error in subBytes: vector is incorrect length"
+		print "CRITICAL ERROR: State subsitution error in subBytes: vector is incorrect length"
 	for x in range(16):
 		j=x*8
 		k=(x+1)*8		
@@ -93,37 +93,95 @@ def subBytes(state):
 
 def shiftRows(state):
 	if(len(state)!=128):
-		print "State row shift error in shiftRows: vector is incorrect length"
+		print "CRITICAL ERROR: State row shift error in shiftRows: vector is incorrect length"
 	tempstate = state[:]
-	state[104:112] = tempstate[8:16]
+	state[8:16] = tempstate[40:48]
+	state[16:24] = tempstate[80:88]
 	state[24:32] = tempstate[120:128]
+	state[40:48] = tempstate[72:80]
+	state[48:56] = tempstate[112:120]
+	state[56:64] = tempstate[24:32]
+	state[72:80] = tempstate[104:112]
 	state[80:88] = tempstate[16:24]
 	state[88:96] = tempstate[56:64]
-	state[56:64] = tempstate[24:32]
-	state[8:16] = tempstate[40:48]
+	state[104:112] = tempstate[8:16]
 	state[112:120] = tempstate[48:56]
-	state[40:48] = tempstate[72:80]
-	state[16:24] = tempstate[80:88]
 	state[120:128] = tempstate[88:96]
-	state[72:80] = tempstate[104:112]
-	state[48:56] = tempstate[112:120]
 	return state
 
-def ByteTimes2(byte):
-	a = BitVector( intVal=2)
-	return a.gf_multiply_modular(byte, modulus, 8)
+def invShiftRows(state):
+	if(len(state)!=128):
+		print "CRITICAL ERROR: State row shift error in shiftRows: vector is incorrect length"
+	tempstate = state[:]
+	state[8:16] = tempstate[104:112]
+	state[16:24] = tempstate[80:88]
+	state[24:32] = tempstate[56:64]
+	state[40:48] = tempstate[8:16]
+	state[48:56] = tempstate[112:120]
+	state[56:64] = tempstate[88:96]
+	state[72:80] = tempstate[40:48]
+	state[80:88] = tempstate[16:24]
+	state[88:96] = tempstate[120:128]
+	state[104:112] = tempstate[72:80]
+	state[112:120] = tempstate[48:56]
+	state[120:128] = tempstate[24:32]
+	return state
 
-def ByteTimes3(byte):
-	a = BitVector( intVal=3)
+def invMixCollumns(state):
+	if(len(state)!=128):
+		print "CRITICAL ERROR: State mix collumns error in mixCollumns: vector is incorrect length"
+	
+	state[:32] = invatrixMultiplication(state[:32])
+	state[32:64] = invMatrixMultiplication(state[32:64])
+	state[64:96] = invMatrixMultiplication(state[64:96])
+	state[96:128] = invMatrixMultiplication(state[96:128])
+
+	return state
+
+def invMatrixMultiplication(vector):
+	stateMatrix=vector[:]	
+	stateMatrix[0:8] = modularMul(vector[0:8],"0E") ^ modularMul(vector[8:16], "0B") ^ modularMul(vector[16:24], "0D") ^ modularMul(vector[24:32], "09")
+	stateMatrix[8:16] = modularMul(vector[0:8],"09") ^ modularMul(vector[8:16],"0E") ^ modularMul(vector[16:24],"0B") ^ modularMul(vector[24:32],"0D")
+	stateMatrix[16:24] = modularMul(vector[0:8],"0D") ^ modularMul(vector[8:16],"09") ^ modularMul(vector[16:24],"0E") ^ modularMul(vector[24:32],"0B")
+	stateMatrix[24:32] = modularMul(vector[0:8],"0B") ^ modularMul(vector[8:16],"0D") ^ modularMul(vector[16:24],"09") ^ modularMul(vector[24:32],"0E")
+	return stateMatrix
+
+def invSubBytes(state):
+	if(len(state)!=128):
+		print "CRITICAL ERROR: State subsitution error in subBytes: vector is incorrect length"
+	for x in range(16):
+		j=x*8
+		k=(x+1)*8		
+		tempbyte = state[j:k]
+		#print "before",state[j:k].get_bitvector_in_hex()
+		z = tempbyte.intValue()
+
+		##Find substitution in rijndael rsbox table
+		subbyte = rsbox[z]
+
+		##Make a bitvector out of the sbox result
+		temp2 = BitVector(intVal=subbyte, size=8)
+
+		##Replace the byte
+		state[j:k] = temp2
+		#print "after:",state[j:k].get_bitvector_in_hex()
+		#print
+	return state
+
+
+def modularMul(byte, hexNum):
+	if(type(hexNum)!=str):
+		print "CRITICAL ERROR: hexnum is not a string"
+	a = BitVector( hexstring=hexNum)
 	return a.gf_multiply_modular(byte, modulus, 8)
 
 def matrixMultiplication(vector):
-	temp1=vector[:]	
-	temp1[0:8] = ByteTimes2(vector[0:8]) ^ ByteTimes3(vector[8:16]) ^ vector[16:24] ^ vector[24:32]
-	temp1[8:16] = vector[0:8] ^ ByteTimes2(vector[8:16]) ^ ByteTimes3(vector[16:24]) ^ vector[24:32]
-	temp1[16:24] = vector[0:8] ^ vector[8:16] ^ ByteTimes2(vector[16:24]) ^ ByteTimes3(vector[24:32])
-	temp1[24:32] = ByteTimes3(vector[0:8]) ^ vector[8:16] ^ vector[16:24] ^ ByteTimes2(vector[24:32])
-	return temp1
+	stateMatrix=vector[:]	
+	stateMatrix[0:8] = modularMul(vector[0:8],"02") ^ modularMul(vector[8:16],"03") ^ vector[16:24] ^ vector[24:32]
+	stateMatrix[8:16] = vector[0:8] ^ modularMul(vector[8:16],"02") ^ modularMul(vector[16:24],"03") ^ vector[24:32]
+	stateMatrix[16:24] = vector[0:8] ^ vector[8:16] ^ modularMul(vector[16:24],"02") ^ modularMul(vector[24:32],"03")
+	stateMatrix[24:32] = modularMul(vector[0:8],"03") ^ vector[8:16] ^ vector[16:24] ^ modularMul(vector[24:32],"02")
+	return stateMatrix
 
 def mixCollumns(state):
 	if(len(state)!=128):
@@ -136,73 +194,107 @@ def mixCollumns(state):
 
 	return state
 
+def invMixCollumns(state):
+	if(len(state)!=128):
+		print "State mix collumns error in mixCollumns: vector is incorrect length"
+	
+	state[:32] = invMatrixMultiplication(state[:32])
+	state[32:64] = invMatrixMultiplication(state[32:64])
+	state[64:96] = invMatrixMultiplication(state[64:96])
+	state[96:128] = invMatrixMultiplication(state[96:128])
+
+	return state
+
 def addRoundKey(roud, state):
 	return state ^ roundkey[roud]
 
 def encryption(message):
-	#temp = BitVector(textstring = message)
-	temp = BitVector(hexstring = "0123456789abcdeffedcba9876543210")
-	temp1 = temp[:128]
-	crypt= BitVector(size=0)
-	temp = temp[127:]
-	##loop until all blocks are encrypted
-	while(len(temp)>0):
-		temp1 = addRoundKey(0,temp1)
+		
+	plaintext = BitVector(textstring = message)
+	if((len(plaintext)%128)!=0):
+		padlen = 128 - (len(plaintext)%128)
+		for _ in range(padlen/8):
+			padding = BitVector(intVal=(padlen/8), size=8)
+			plaintext = plaintext + padding
+		#print "Padding",plaintext.get_bitvector_in_hex()
+	stateMatrix = plaintext[:128]
+	cypher = BitVector(size=0)
+	block_count = 0
+	num_of_blocks =len(plaintext)/128
+	##loop until the message is all 0s 
+	for blockNum in range(num_of_blocks):
+		block_count = block_count+1
+		stateMatrix = addRoundKey(0,stateMatrix)
 		i=1
-		while(i<num_of_rounds):
-			print "Start of round",i
-			print temp1.get_bitvector_in_hex()
-			print
-			temp1 = subBytes(temp1)
-			print "After subBytes"
-			print temp1.get_bitvector_in_hex()
-			print
-			temp1 = shiftRows(temp1)
-			print "After shiftRows"
-			print temp1.get_bitvector_in_hex()
-			print
-			if(i!=num_of_rounds-1):
-				temp1 = mixCollumns(temp1)
-				print "After mixCollumns"
-				print temp1.get_bitvector_in_hex()
-				print
-			temp1 = addRoundKey(i, temp1)
-			print "After addRoundKey"
-			print temp1.get_bitvector_in_hex()
-			print
-			print "Round key"
-			print roundkey[i].get_bitvector_in_hex()
-			print
-			i=i+1
-		print temp1
-		crypt = crypt+temp1
-		temp = BitVector(size=0)
-	return crypt.get_bitvector_in_hex()
 
-Rcon = [	0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36,
-            0x6c, 0xd8, 0xab, 0x4d, 0x9a, 0x2f, 0x5e, 0xbc, 0x63, 0xc6, 0x97,
-            0x35, 0x6a, 0xd4, 0xb3, 0x7d, 0xfa, 0xef, 0xc5, 0x91, 0x39, 0x72,
-            0xe4, 0xd3, 0xbd, 0x61, 0xc2, 0x9f, 0x25, 0x4a, 0x94, 0x33, 0x66,
-            0xcc, 0x83, 0x1d, 0x3a, 0x74, 0xe8, 0xcb, 0x8d, 0x01, 0x02, 0x04,
-            0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36, 0x6c, 0xd8, 0xab, 0x4d,
-            0x9a, 0x2f, 0x5e, 0xbc, 0x63, 0xc6, 0x97, 0x35, 0x6a, 0xd4, 0xb3,
-            0x7d, 0xfa, 0xef, 0xc5, 0x91, 0x39, 0x72, 0xe4, 0xd3, 0xbd, 0x61,
-            0xc2, 0x9f, 0x25, 0x4a, 0x94, 0x33, 0x66, 0xcc, 0x83, 0x1d, 0x3a,
-            0x74, 0xe8, 0xcb, 0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40,
-            0x80, 0x1b, 0x36, 0x6c, 0xd8, 0xab, 0x4d, 0x9a, 0x2f, 0x5e, 0xbc,
-            0x63, 0xc6, 0x97, 0x35, 0x6a, 0xd4, 0xb3, 0x7d, 0xfa, 0xef, 0xc5,
-            0x91, 0x39, 0x72, 0xe4, 0xd3, 0xbd, 0x61, 0xc2, 0x9f, 0x25, 0x4a,
-            0x94, 0x33, 0x66, 0xcc, 0x83, 0x1d, 0x3a, 0x74, 0xe8, 0xcb, 0x8d,
-            0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36, 0x6c,
-            0xd8, 0xab, 0x4d, 0x9a, 0x2f, 0x5e, 0xbc, 0x63, 0xc6, 0x97, 0x35,
-            0x6a, 0xd4, 0xb3, 0x7d, 0xfa, 0xef, 0xc5, 0x91, 0x39, 0x72, 0xe4,
-            0xd3, 0xbd, 0x61, 0xc2, 0x9f, 0x25, 0x4a, 0x94, 0x33, 0x66, 0xcc,
-            0x83, 0x1d, 0x3a, 0x74, 0xe8, 0xcb, 0x8d, 0x01, 0x02, 0x04, 0x08,
-            0x10, 0x20, 0x40, 0x80, 0x1b, 0x36, 0x6c, 0xd8, 0xab, 0x4d, 0x9a,
-            0x2f, 0x5e, 0xbc, 0x63, 0xc6, 0x97, 0x35, 0x6a, 0xd4, 0xb3, 0x7d,
-            0xfa, 0xef, 0xc5, 0x91, 0x39, 0x72, 0xe4, 0xd3, 0xbd, 0x61, 0xc2,
-            0x9f, 0x25, 0x4a, 0x94, 0x33, 0x66, 0xcc, 0x83, 0x1d, 0x3a, 0x74,
-            0xe8, 0xcb ]
+		while(i<num_of_rounds):
+			print "Encryption Block:", block_count,". Round:",i			
+
+			stateMatrix = subBytes(stateMatrix)
+			print "Enc: after subBytes",stateMatrix.get_bitvector_in_hex()
+
+			stateMatrix = shiftRows(stateMatrix)
+			print "Enc: after shiftRows",stateMatrix.get_bitvector_in_hex()
+
+			if(i!=num_of_rounds-1):
+				stateMatrix = mixCollumns(stateMatrix)
+				print "Enc: after mixCollumns",stateMatrix.get_bitvector_in_hex()
+
+			stateMatrix = addRoundKey(i, stateMatrix)
+			print "Enc: after addRC:",i,stateMatrix.get_bitvector_in_hex()
+
+			i=i+1
+
+		cypher = cypher+stateMatrix
+
+		if(blockNum != (num_of_blocks-1)):
+			plaintext = plaintext[128:]
+			stateMatrix = plaintext[:128]
+	if(len(sys.argv)==3):
+		print "Block count",block_count
+		print cypher.get_bitvector_in_hex()
+	return cypher.get_bitvector_in_ascii()
+
+def decryption(message):
+	cypher = BitVector(textstring = message)
+	stateMatrix = cypher[:128]
+	plaintext = BitVector(size=0)
+
+	block_count = 0	
+	num_of_blocks =len(cypher)/128
+	##loop until the message is all 0s
+	for blockNum in range(num_of_blocks):
+		block_count = block_count+1
+		i=num_of_rounds-1
+
+		stateMatrix = addRoundKey(i,stateMatrix)
+		print "Dec: after addRC",i,stateMatrix.get_bitvector_in_hex()
+
+		i=i-1
+		while(i>=0):
+			print "Encryption Block:", block_count,". Round:",i
+			stateMatrix = invShiftRows(stateMatrix)
+			print "Dec: after InvShiftRows",stateMatrix.get_bitvector_in_hex()
+			
+			stateMatrix = invSubBytes(stateMatrix)
+			print "Dec: after InvSubBytes",stateMatrix.get_bitvector_in_hex()
+
+			stateMatrix = addRoundKey(i, stateMatrix)
+			print "Dec: after addRC",i,stateMatrix.get_bitvector_in_hex()
+
+			if(i!=0):
+				stateMatrix = invMixCollumns(stateMatrix)
+				print "Dec: after mixColl",stateMatrix.get_bitvector_in_hex()
+			i=i-1
+
+		plaintext = plaintext+stateMatrix
+		if(blockNum != (num_of_blocks-1)):
+			cypher = cypher[128:]
+			stateMatrix = cypher[:128]
+	if(len(sys.argv)==3):
+		print "Block count",block_count
+		print plaintext.get_bitvector_in_hex()
+	return plaintext.get_bitvector_in_ascii()
 
     # Rijndael S-box
 sbox =  [	0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67,
@@ -256,29 +348,19 @@ rsbox = [	0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 0xbf, 0x40, 0xa3,
             0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55,
             0x21, 0x0c, 0x7d]
 
-def order(x):
-	return{
-		',':91,
-		'.':92,
-		'-':93,
-		'_':94,
-	}.get(x, ord(x))
-
-def character(x):
-	return{
-		91:',',
-		92:'.',
-		93:'-',
-		94:'_',
-	}.get(x, chr(x))
-
 #plaintext = raw_input("Enter your plaintext: ")
 #plaintext=plaintext.upper()
 #print "Enter your key of size ", len(plaintext), " or less: "
 #key = raw_input()
 #key = key.upper()
-plaintext = "This is my text!!"
+f = open(sys.argv[1])
+message = f.read()
 
 key_expansion()
-plaintext = encryption(plaintext)
-print plaintext
+message = encryption(message)
+sys.stdout.write(message)
+print
+message = decryption(message)
+sys.stdout.write(message)
+print
+
