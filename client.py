@@ -281,7 +281,8 @@ def decryption(message):
 	if(len(sys.argv)==4):
 		print "Block count",block_count
 		print plaintext.get_bitvector_in_hex()
-	return plaintext.get_bitvector_in_ascii()
+	ascii = plaintext.get_bitvector_in_ascii()
+	return ascii[:len(ascii)-1]
 
     # Rijndael S-box
 sbox =  [	0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67,
