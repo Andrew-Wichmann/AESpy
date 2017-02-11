@@ -1,4 +1,10 @@
 #!/bin/bash
+
+if [ ! -r message.txt ]; then
+  printf '%s\n' 'No message to encrypt. Create a file named message.txt to start.'
+  exit 1
+fi
+
 echo "ENCRYPTION"
 echo "----------"
 sslstart=$(date +%s%N)
